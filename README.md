@@ -1,239 +1,167 @@
-# react-dnd-scrolling
+# hello-pangea-dnd-scrolling
 
-Cross browser compatible scrolling containers for drag and drop interactions.
+A cross-browser solution to scrolling during drag and drop for [@hello-pangea/dnd](https://github.com/hello-pangea/dnd).
 
-Works with `react-dnd` `10.x`, `11.x`, `14.x`, `15.x`, `16.x`.
-
-### Build Status
-
-![CI](https://github.com/TechStark/react-dnd-scrolling/workflows/CI/badge.svg)
-
-### Examples
-
-- [Live Demo: Basic](https://codesandbox.io/s/react-dnd-scrolling-demo-vnp66)
-- [Live Demo: Mobile](https://codesandbox.io/s/react-dnd-scrolling-mobile-demo-r35bxf)
-- [Code Examples](https://github.com/TechStark/react-dnd-scrolling-examples)
-
-| [Basic Example](https://codesandbox.io/s/react-dnd-scrolling-demo-vnp66) | [Mobile Example](https://codesandbox.io/s/react-dnd-scrolling-mobile-demo-r35bxf) |
-| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| <img src="./examples/recording-basic.gif" style="max-height: 500px;">    | <img src="./examples/recording-mobile.gif" style="max-height: 500px;">            |
-
-### Get Started
+## Installation
 
 ```bash
-npm install react-dnd-scrolling
+npm install @hello-pangea/dnd hello-pangea-dnd-scrolling
 ```
 
-- Using `withScrolling`
+or
 
-```js
-import React, { Component } from 'react';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import withScrolling from 'react-dnd-scrolling';
-import DragItem from './DragItem';
-
-const ScrollingComponent = withScrolling('div');
-
-const ITEMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-export default class App extends Component {
-  render() {
-    return (
-      <DndProvider backend={HTML5Backend}>
-        <ScrollingComponent className="container">
-          {ITEMS.map(n => (
-            <DragItem key={n} label={`Item ${n}`} />
-          ))}
-        </ScrollingComponent>
-      </DndProvider>
-    );
-  }
-}
+```bash
+yarn add @hello-pangea/dnd hello-pangea-dnd-scrolling
 ```
 
-Note: You should replace the original `div` you would like to make scrollable with the `ScrollingComponent`.
+## Usage
 
-- Using `useDndScrolling` hook
+There are two main ways to use this library:
 
-```js
-import React, { useRef } from 'react';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import { useDndScrolling } from 'react-dnd-scrolling';
-import DragItem from './DragItem';
+### 1. Using DndScrollingContext (Recommended)
 
-const ITEMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+This approach provides the best integration with @hello-pangea/dnd:
 
-const TestPage = () => {
-  const ref = useRef();
-  useDndScrolling(ref);
+```jsx
+import React from 'react';
+import { Droppable, Draggable } from '@hello-pangea/dnd';
+import withScrolling, { DndScrollingContext } from 'hello-pangea-dnd-scrolling';
+
+// Create a scrollable container
+const ScrollableDroppable = withScrolling(props => {
+  const { children, ...rest } = props;
   return (
-    <div ref={ref} className="container">
-      {ITEMS.map(n => (
-        <DragItem key={n} label={`Item ${n}`} />
-      ))}
+    <div
+      style={{
+        height: '400px',
+        width: '300px',
+        overflow: 'auto',
+        border: '1px solid #ccc',
+        padding: '8px'
+      }}
+      {...rest}
+    >
+      {children}
     </div>
   );
+});
+
+// Use DndScrollingContext instead of DragDropContext
+function App() {
+  const onDragEnd = (result) => {
+    // Your reordering logic here
+  };
+
+  return (
+    <DndScrollingContext onDragEnd={onDragEnd}>
+      <ScrollableDroppable>
+        <Droppable droppableId="droppable">
+          {(provided) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+            >
+              {items.map((item, index) => (
+                <Draggable key={item.id} draggableId={item.id} index={index}>
+                  {(provided) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                    >
+                      {item.content}
+                    </div>
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </ScrollableDroppable>
+    </DndScrollingContext>
+  );
+}
+```
+
+### 2. Using the Hook
+
+```jsx
+import React, { useRef } from 'react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { useDndScrolling } from 'hello-pangea-dnd-scrolling';
+
+function ScrollableContainer({ children }) {
+  const ref = useRef(null);
+  useDndScrolling(ref);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        height: '400px',
+        width: '300px',
+        overflow: 'auto',
+        border: '1px solid #ccc',
+        padding: '8px'
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function App() {
+  const onDragEnd = (result) => {
+    // Your reordering logic here
+  };
+
+  return (
+    <DragDropContext onDragEnd={onDragEnd}>
+      <ScrollableContainer>
+        <Droppable droppableId="droppable">
+          {/* ... */}
+        </Droppable>
+      </ScrollableContainer>
+    </DragDropContext>
+  );
+}
+```
+
+## Options
+
+Both the HOC and the hook accept the following options:
+
+```jsx
+// Default values
+const options = {
+  // Called with the new scrollLeft and scrollTop values when the container scrolls
+  onScrollChange: () => {},
+  // A function that returns the horizontal strength (between -1 and 1)
+  horizontalStrength: defaultHorizontalStrength,
+  // A function that returns the vertical strength (between -1 and 1)
+  verticalStrength: defaultVerticalStrength,
+  // Multiplier for the strength
+  strengthMultiplier: 30
 };
 
-export default function App() {
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <TestPage />
-    </DndProvider>
-  );
-}
+// Example usage
+useDndScrolling(ref, options);
+// or
+withScrolling(Component, options);
 ```
 
-### Easing Example
+## How It Works
 
-```js
-import React, { Component } from 'react';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import withScrolling, { createHorizontalStrength, createVerticalStrength } from 'react-dnd-scrolling';
-import DragItem from './DragItem';
-import './App.css';
+The library tracks the drag position and automatically scrolls the container when the dragged item gets close to the edges. This works by:
 
+1. With `DndScrollingContext`: We intercept drag events from @hello-pangea/dnd to get precise drag coordinates.
+2. With `useDndScrolling`: We use DOM events to detect dragging and scroll accordingly.
 
-const ScrollZone = withScrolling('ul');
-const linearHorizontalStrength = createHorizontalStrength(150);
-const linearVerticalStrength = createVerticalStrength(150);
-const ITEMS = [1,2,3,4,5,6,7,8,9,10];
+## Example
 
-// this easing function is from https://gist.github.com/gre/1650294 and
-// expects/returns a number between [0, 1], however strength functions
-// expects/returns a value between [-1, 1]
-function ease(val) {
-  const t = (val + 1) / 2; // [-1, 1] -> [0, 1]
-  const easedT = t<.5 ? 2*t*t : -1+(4-2*t)*t;
-  return easedT * 2 - 1; // [0, 1] -> [-1, 1]
-}
+Check out the `src/example.jsx` file for a complete example of how to use this library with @hello-pangea/dnd.
 
-function hStrength(box, point) {
-  return ease(linearHorizontalStrength(box, point));
-}
+## License
 
-function vStrength(box, point) {
-  return ease(linearVerticalStrength(box, point));
-}
-
-export default App(props) {
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <ScrollingComponent
-        className="App"
-        verticalStrength={vStrength}
-        horizontalStrength={hStrength} >
-
-        {ITEMS.map(n => (
-          <DragItem key={n} label={`Item ${n}`} />
-        ))}
-      </ScrollingComponent>
-    </DndProvider>
-  );
-}
-```
-
-Note: You should replace the original `div` you would like to make scrollable with the `ScrollingComponent`.
-
-### Virtualized Example
-
-Since react-dnd-scrolling utilizes the Higher Order Components (HOC) pattern, drag and drop scrolling behaviour can easily be added to existing components. For example to speedup huge lists by using [react-virtualized](https://github.com/bvaughn/react-virtualized) for a windowed view where only the visible rows are rendered:
-
-```js
-import React from 'react';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import withScrolling from 'react-dnd-scrolling';
-import { List } from 'react-virtualized';
-import DragItem from './DragItem';
-import './App.css';
-
-const ScrollingVirtualList = withScrolling(List);
-
-// creates array with 1000 entries
-const ITEMS = Array.from(Array(1000)).map((e,i)=> `Item ${i}`);
-
-
-export default App(props) {
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <ScrollingVirtualList
-        className="App"
-        height={600}
-        width={800}
-        rowCount={ITEMS.length}
-        rowHeight={34}
-        rowRenderer={
-          ({ key, index, style }) => (
-            <DragItem
-              key={key}
-              style={style}
-              label={ITEMS[index]}
-            />
-          )
-        }
-       />
-    </DndProvider>
-  );
-}
-```
-
-### API
-
-#### `withScrolling`
-
-A React higher order component with the following properties:
-
-```js
-const ScrollZone = withScrolling(String|Component);
-
-<ScrollZone
-  strengthMultiplier={Number}
-  horizontalStrength={Function}
-  verticalStrength={Function}
-  onScrollChange={Function} >
-
-  {children}
-</Scrollzone>
-```
-
-Apply the withScrolling function to any html-identifier ("div", "ul" etc) or react component to add drag and drop scrolling behaviour.
-
-- `horizontalStrength` a function that returns the strength of the horizontal scroll direction
-- `verticalStrength` - a function that returns the strength of the vertical scroll direction
-- `strengthMultiplier` - strength multiplier, play around with this (default 30)
-- `onScrollChange` - a function that is called when `scrollLeft` or `scrollTop` of the component are changed. Called with those two arguments in that order.
-
-The strength functions are both called with two arguments. An object representing the rectangle occupied by the Scrollzone, and an object representing the coordinates of mouse.
-
-They should return a value between -1 and 1.
-
-- Negative values scroll up or left.
-- Positive values scroll down or right.
-- 0 stops all scrolling.
-
-#### `createVerticalStrength(buffer)` and `createHorizontalStrength(buffer)`
-
-These allow you to create linearly scaling strength functions with a sensitivity different than the default value of 150px.
-
-##### Example
-
-```js
-import withScrolling, {
-  createVerticalStrength,
-  createHorizontalStrength
-} from 'react-dnd-scrolling';
-
-const Scrollzone = withScrolling('ul');
-const vStrength = createVerticalStrength(500);
-const hStrength = createHorizontalStrength(300);
-
-// zone will scroll when the cursor drags within
-// 500px of the top/bottom and 300px of the left/right
-const zone = (
-  <Scrollzone verticalStrength={vStrength} horizontalStrength={hStrength}></Scrollzone>
-);
-```
+MIT

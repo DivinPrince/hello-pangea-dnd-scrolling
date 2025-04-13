@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useContext } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { DndContext } from 'react-dnd';
+import { DragDropContext } from '@hello-pangea/dnd';
 import hoist from 'hoist-non-react-statics';
 import { noop } from './util';
 import ScrollingMonitor from './ScrollingMonitor';
@@ -61,26 +61,106 @@ const defaultOptions = {
   strengthMultiplier: 30
 };
 
-export function useDndScrolling(componentRef, scrollingOptions) {
-  const { dragDropManager } = useContext(DndContext);
-  if (!dragDropManager) {
-    throw new Error(
-      'Unable to get dragDropManager from context. Wrap this in <DndProvider>.'
-    );
-  }
+// Custom DragDropContext that allows us to intercept drag events
+export const DndScrollingContext = ({ children, onDragEnd, ...props }) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPosition, setDragPosition] = useState(null);
+  
+  const handleDragStart = (start) => {
+    setIsDragging(true);
+    if (props.onDragStart) {
+      props.onDragStart(start);
+    }
+  };
 
+  const handleDragUpdate = (update) => {
+    if (update.clientY && update.clientX) {
+      setDragPosition({ x: update.clientX, y: update.clientY });
+    }
+    if (props.onDragUpdate) {
+      props.onDragUpdate(update);
+    }
+  };
+
+  const handleDragEnd = (result) => {
+    setIsDragging(false);
+    setDragPosition(null);
+    if (onDragEnd) {
+      onDragEnd(result);
+    }
+  };
+
+  return (
+    <DragDropContext
+      onDragStart={handleDragStart}
+      onDragUpdate={handleDragUpdate}
+      onDragEnd={handleDragEnd}
+      {...props}
+    >
+      {children}
+    </DragDropContext>
+  );
+};
+
+DndScrollingContext.propTypes = {
+  children: PropTypes.node.isRequired,
+  onDragEnd: PropTypes.func.isRequired,
+  onDragStart: PropTypes.func,
+  onDragUpdate: PropTypes.func
+};
+
+export function useDndScrolling(componentRef, scrollingOptions) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPosition, setDragPosition] = useState(null);
+  
+  // Setup event listeners for mouse movement when using the hook directly
   useEffect(() => {
     if (!componentRef.current) {
       return () => {};
     }
+    
+    const handleMouseMove = (e) => {
+      if (isDragging) {
+        setDragPosition({ x: e.clientX, y: e.clientY });
+      }
+    };
+    
+    const handleDragStart = () => {
+      setIsDragging(true);
+    };
+    
+    const handleDragEnd = () => {
+      setIsDragging(false);
+      setDragPosition(null);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('dragstart', handleDragStart);
+    document.addEventListener('dragend', handleDragEnd);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('dragstart', handleDragStart);
+      document.removeEventListener('dragend', handleDragEnd);
+    };
+  }, [isDragging]);
+  
+  // Start scrolling when dragging
+  useEffect(() => {
+    if (!componentRef.current || !isDragging || !dragPosition) {
+      return () => {};
+    }
+    
     const options = { ...defaultOptions, ...scrollingOptions };
-    const monitor = new ScrollingMonitor(dragDropManager, componentRef.current, options);
+    const monitor = new ScrollingMonitor(null, componentRef.current, options);
+    
     monitor.start();
+    monitor.manualUpdateScrolling(dragPosition);
+    
     return () => {
       monitor.stop();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [componentRef.current, dragDropManager, scrollingOptions]);
+  }, [componentRef.current, isDragging, dragPosition, scrollingOptions]);
 }
 
 export default function withScrolling(WrappedComponent) {
@@ -89,7 +169,6 @@ export default function withScrolling(WrappedComponent) {
     verticalStrength = defaultOptions.verticalStrength,
     horizontalStrength = defaultOptions.horizontalStrength,
     strengthMultiplier = defaultOptions.strengthMultiplier,
-
     ...restProps
   }) {
     const ref = useRef(null);

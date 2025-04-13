@@ -23,15 +23,28 @@ export default class ScrollingMonitor {
     // have to attach the listeners to the body
     this.eventBody.addEventListener('touchmove', this.handleEvent);
 
-    this.clearMonitorSubscription = this.dragDropManager
-      .getMonitor()
-      .subscribeToStateChange(() => this.handleMonitorChange());
+    // For @hello-pangea/dnd, we don't use the dragDropManager's monitor
+    // Instead, we listen for the dragstart and dragend events directly
+    this.eventBody.addEventListener('dragstart', this.handleDragStart);
+    this.eventBody.addEventListener('dragend', this.handleDragEnd);
+    
+    // For react-dnd compatibility
+    if (this.dragDropManager) {
+      this.clearMonitorSubscription = this.dragDropManager
+        .getMonitor()
+        .subscribeToStateChange(() => this.handleMonitorChange());
+    }
   }
 
   stop() {
     this.container.removeEventListener('dragover', this.handleEvent);
     this.eventBody.removeEventListener('touchmove', this.handleEvent);
-    this.clearMonitorSubscription();
+    this.eventBody.removeEventListener('dragstart', this.handleDragStart);
+    this.eventBody.removeEventListener('dragend', this.handleDragEnd);
+    // If using react-dnd manager, clear the subscription
+    if (this.clearMonitorSubscription) {
+      this.clearMonitorSubscription();
+    }
     this.stopScrolling();
   }
 
@@ -42,14 +55,64 @@ export default class ScrollingMonitor {
     }
   };
 
-  handleMonitorChange() {
-    const isDragging = this.dragDropManager.getMonitor().isDragging();
+  // For @hello-pangea/dnd, we use these handlers and direct updates
+  handleDragStart = () => {
+    this.dragging = true;
+  };
 
-    if (!this.dragging && isDragging) {
+  handleDragEnd = () => {
+    this.dragging = false;
+    this.stopScrolling();
+  };
+
+  // Manual update method for @hello-pangea/dnd
+  manualUpdateScrolling(coords) {
+    if (!this.dragging) {
       this.dragging = true;
-    } else if (this.dragging && !isDragging) {
-      this.dragging = false;
-      this.stopScrolling();
+    }
+    
+    if (!this.attached) {
+      this.attach();
+    }
+    
+    this.updateScrollingWithCoords(coords);
+  }
+  
+  // Update with direct coordinates instead of event
+  updateScrollingWithCoords = throttle(
+    coords => {
+      const {
+        left: x,
+        top: y,
+        width: w,
+        height: h
+      } = this.container.getBoundingClientRect();
+      const box = { x, y, w, h };
+
+      // calculate strength
+      this.scaleX = this.options.horizontalStrength(box, coords);
+      this.scaleY = this.options.verticalStrength(box, coords);
+
+      // start scrolling if we need to
+      if (!this.frame && (this.scaleX || this.scaleY)) {
+        this.startScrolling();
+      }
+    },
+    100,
+    { trailing: false }
+  );
+
+  handleMonitorChange() {
+    // Keep this for backward compatibility with react-dnd
+    if (this.dragDropManager) {
+      const isDragging = this.dragDropManager.getMonitor().isDragging();
+
+      if (!this.dragging && isDragging) {
+        this.dragging = true;
+      } else if (this.dragging && !isDragging) {
+        this.dragging = false;
+        this.stopScrolling();
+      }
     }
   }
 
